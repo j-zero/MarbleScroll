@@ -28,7 +28,7 @@ namespace MarbleScroll
 		// if we are scrolling, intercept back button action
         private bool disableBackButton = false;
         // when we are simulating middle click
-        private bool simulatingMiddleClick = false;
+        private bool simulatingClick = false;
 
         // some coordinates for detecting scroll
         private int startX;
@@ -73,9 +73,14 @@ namespace MarbleScroll
             MSLLHOOKSTRUCT hookStruct = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
 
             uint xButton = GetXButton(hookStruct.mouseData); //0x01 == Back, 0x02 == Forward
-
-            if ((type == MouseMessages.WM_XBUTTONDOWN && xButton == 1) || type == MouseMessages.WM_MBUTTONDOWN && !simulatingMiddleClick)
+            if(type == MouseMessages.WM_XBUTTONDOWN && xButton == 1)
             {
+                Debug.WriteLine(type.ToString());
+                Debug.WriteLine(xButton);
+            }
+            if (((type == MouseMessages.WM_XBUTTONDOWN && xButton == 1 || (type == MouseMessages.WM_MBUTTONDOWN)) && !simulatingClick) )
+            {
+
                 isScroll = true;
                 disableBackButton = false;
                 startX = hookStruct.pt.x;
@@ -97,37 +102,57 @@ namespace MarbleScroll
 					
                 return new IntPtr(1);
             }
-            else if ((type == MouseMessages.WM_XBUTTONUP && xButton == 1) || type == MouseMessages.WM_MBUTTONUP && !simulatingMiddleClick)
+            else if ((type == MouseMessages.WM_XBUTTONDOWN && xButton == 2))
+            {
+                simulatingClick = true;
+                Task.Factory.StartNew(() =>
+                {
+                    mouse_event((uint)MouseEvents.XDOWN, (uint)hookStruct.pt.x, (uint)hookStruct.pt.y, 1, UIntPtr.Zero);
+                });
+                return new IntPtr(1);
+            }
+            else if ((type == MouseMessages.WM_XBUTTONUP && xButton == 2))
+            {
+                Task.Factory.StartNew(() =>
+                {
+                    mouse_event((uint)MouseEvents.XUP, (uint)hookStruct.pt.x, (uint)hookStruct.pt.y, 1, UIntPtr.Zero);
+                });
+
+                simulatingClick = false;
+                return new IntPtr(1);
+            }
+            else if (((type == MouseMessages.WM_XBUTTONUP && xButton == 1 || type == MouseMessages.WM_MBUTTONUP) && !simulatingClick))
             {
                 isScroll = false;
-                if (disableBackButton)
+                if (disableBackButton && type != MouseMessages.WM_MBUTTONUP)
                 {
                     return new IntPtr(1);
                 }
                 else
                 {
-                    if (type == MouseMessages.WM_XBUTTONUP)
-                    {
-                        simulatingMiddleClick = true;
+                    //if (type == MouseMessages.WM_XBUTTONUP && xButton == 1)
+                    //{
+                        simulatingClick = true;
                         Task.Factory.StartNew(() =>
                         {
                             mouse_event((uint)MouseEvents.MIDDLEDOWN, (uint)hookStruct.pt.x, (uint)hookStruct.pt.y, 0, UIntPtr.Zero);
                             mouse_event((uint)MouseEvents.MIDDLEUP, (uint)hookStruct.pt.x, (uint)hookStruct.pt.y, 0, UIntPtr.Zero);
                         });
                         return new IntPtr(1);
-                    }
+                    //}
                 }
             }
-            else if(simulatingMiddleClick && type == MouseMessages.WM_MBUTTONUP)
+            else if (simulatingClick && type == MouseMessages.WM_MBUTTONUP)
             {
-                simulatingMiddleClick = false;
+                simulatingClick = false;
             }
-            else if (isScroll && type == MouseMessages.WM_MOUSEMOVE)
+            else if ((isScroll || System.Windows.Forms.Control.IsKeyLocked(System.Windows.Forms.Keys.CapsLock)) && type == MouseMessages.WM_MOUSEMOVE)
             {
+
                 dx += hookStruct.pt.x - startX;
                 dy += hookStruct.pt.y - startY;
 
-				// horizontal
+                // horizontal
                 if (Math.Abs(dx) > SENSITIVITY_X)
                 {
                     int d = DISTANCE_X;
@@ -141,8 +166,8 @@ namespace MarbleScroll
 
                     // reset vertical scroll (because vertical is more sensitive)
                     dy = 0;
-					
-					// scroll me (:
+
+                    // scroll me (:
                     // need to run in different thread, as it takes to long to execute mouse_event and windows doesn't like it
                     Task.Factory.StartNew(() =>
                     {
@@ -150,8 +175,8 @@ namespace MarbleScroll
                     });
                     disableBackButton = true;
                 }
-				
-				// vertical
+
+                // vertical
                 if (Math.Abs(dy) > SENSITIVITY_Y)
                 {
                     int d = DISTANCE_Y;
@@ -163,9 +188,14 @@ namespace MarbleScroll
                     else
                         dy += SENSITIVITY_Y;
 
-					// scroll me (:
+
+#if DEBUG
+                    //Debug.WriteLine(d);
+#endif
+                    // scroll me (:
                     // need to run in different thread, as it takes to long to execute mouse_event and windows doesn't like it
-                    Task.Factory.StartNew(() => { 
+                    Task.Factory.StartNew(() =>
+                    {
                         mouse_event((uint)MouseEvents.WHEEL, 0U, 0U, d, UIntPtr.Zero);
                     });
                     disableBackButton = true;
@@ -227,12 +257,20 @@ namespace MarbleScroll
 
         private enum MouseEvents
         {
+            ABSOLUTE    = 0x8000,
+            LEFTDOWN    = 0x0002,
+            LEFTUP      = 0x0004,
+            MIDDLEDOWN  = 0x0020,
+            MIDDLEUP    = 0x0040,
+            MOVE        = 0x0001,
+            RIGHTDOWN   = 0x0008,
+            RIGHTUP     = 0x0010,
+            XDOWN       = 0x0080,
+            XUP         = 0x0100,
             WHEEL       = 0x0800,
             HWHEEL      = 0x1000,
-            MOVE        = 0x0001,
-            ABSMOVE     = 0x8001,
-            MIDDLEDOWN  = 0x0020,
-            MIDDLEUP    = 0x0040
+            ABSMOVE     = 0x8001 /// ???
+            
         }
 
         [StructLayout(LayoutKind.Sequential)]
