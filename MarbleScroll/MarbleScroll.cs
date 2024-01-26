@@ -5,11 +5,11 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace MarbleScroll
 {
-
-    class MarbleScroll
+    public class MarbleScroll
     {
         public bool FocusWindow { get; set; }
         private IntPtr hookID = IntPtr.Zero;
@@ -26,7 +26,7 @@ namespace MarbleScroll
 		// are we scrolling or just pressing the button?
         private bool isScroll = false;
 		// if we are scrolling, intercept back button action
-        private bool disableBackButton = false;
+        private bool supressButtonClick = false;
         // when we are simulating middle click
         private bool simulatingClick = false;
 
@@ -36,6 +36,16 @@ namespace MarbleScroll
         private int dx;
         private int dy;
 
+        private const uint backButton = 1;
+        private const uint forwardButton = 2;
+
+        private uint scrollXButton = backButton;
+        private bool convertXToMiddleClick = false;
+
+        public bool ConvertXToMiddleClick { get; set; }
+        public bool EnableMiddleButtonScroll { get; set; }
+        public bool EnableXButtonScroll { get; set; }
+        public uint ScrollXButton { get { return scrollXButton;  } set { this.scrollXButton = value; } }
         public MarbleScroll()
         {
             // we need this, else gc will collect it
@@ -73,16 +83,13 @@ namespace MarbleScroll
             MSLLHOOKSTRUCT hookStruct = (MSLLHOOKSTRUCT)Marshal.PtrToStructure(lParam, typeof(MSLLHOOKSTRUCT));
 
             uint xButton = GetXButton(hookStruct.mouseData); //0x01 == Back, 0x02 == Forward
-            if(type == MouseMessages.WM_XBUTTONDOWN && xButton == 1)
-            {
-                Debug.WriteLine(type.ToString());
-                Debug.WriteLine(xButton);
-            }
-            if (((type == MouseMessages.WM_XBUTTONDOWN && xButton == 1 || (type == MouseMessages.WM_MBUTTONDOWN)) && !simulatingClick) )
+            //isScroll = Control.IsKeyLocked(Keys.CapsLock);
+
+            if (((EnableXButtonScroll && type == MouseMessages.WM_XBUTTONDOWN && xButton == scrollXButton || (EnableMiddleButtonScroll && type == MouseMessages.WM_MBUTTONDOWN) && !simulatingClick) ))
             {
 
                 isScroll = true;
-                disableBackButton = false;
+                supressButtonClick = false;
                 startX = hookStruct.pt.x;
                 startY = hookStruct.pt.y;
                 dx = 0;
@@ -96,12 +103,13 @@ namespace MarbleScroll
                 IntPtr foregroundWindow = GetForegroundWindow();
 				
 				// only focus is window is not already focused
-                
+                /*
                 if (this.FocusWindow && (GetAncestor(foregroundWindow, 3) != GetAncestor(focusWindow, 3)))
                     SetForegroundWindow(focusWindow);
-					
+					*/
                 return new IntPtr(1);
             }
+            /*
             else if ((type == MouseMessages.WM_XBUTTONDOWN && xButton == 2))
             {
                 simulatingClick = true;
@@ -121,17 +129,18 @@ namespace MarbleScroll
                 simulatingClick = false;
                 return new IntPtr(1);
             }
-            else if (((type == MouseMessages.WM_XBUTTONUP && xButton == 1 || type == MouseMessages.WM_MBUTTONUP) && !simulatingClick))
+            */
+            else if (((EnableXButtonScroll && type == MouseMessages.WM_XBUTTONUP && xButton == scrollXButton || EnableMiddleButtonScroll && type == MouseMessages.WM_MBUTTONUP)) && !simulatingClick)
             {
                 isScroll = false;
-                if (disableBackButton && type != MouseMessages.WM_MBUTTONUP)
+                if (supressButtonClick)
                 {
                     return new IntPtr(1);
                 }
                 else
                 {
-                    //if (type == MouseMessages.WM_XBUTTONUP && xButton == 1)
-                    //{
+                    if ((EnableXButtonScroll && type == MouseMessages.WM_XBUTTONUP && xButton == scrollXButton && convertXToMiddleClick))
+                    {
                         simulatingClick = true;
                         Task.Factory.StartNew(() =>
                         {
@@ -139,15 +148,26 @@ namespace MarbleScroll
                             mouse_event((uint)MouseEvents.MIDDLEUP, (uint)hookStruct.pt.x, (uint)hookStruct.pt.y, 0, UIntPtr.Zero);
                         });
                         return new IntPtr(1);
-                    //}
+                    }
+                    else if (EnableMiddleButtonScroll && type == MouseMessages.WM_MBUTTONUP && !simulatingClick)
+                    {
+                        simulatingClick = true;
+                        Task.Factory.StartNew(() =>
+                        {
+                            mouse_event((uint)MouseEvents.MIDDLEDOWN, (uint)hookStruct.pt.x, (uint)hookStruct.pt.y, 0, UIntPtr.Zero);
+                            mouse_event((uint)MouseEvents.MIDDLEUP, (uint)hookStruct.pt.x, (uint)hookStruct.pt.y, 0, UIntPtr.Zero);
+                        });
+                        return new IntPtr(1);
+                    }
                 }
             }
-            else if (simulatingClick && type == MouseMessages.WM_MBUTTONUP)
+            else if (simulatingClick && (EnableXButtonScroll && type == MouseMessages.WM_XBUTTONUP && xButton == scrollXButton) || EnableMiddleButtonScroll && type == MouseMessages.WM_MBUTTONUP)
             {
                 simulatingClick = false;
             }
-            else if ((isScroll || System.Windows.Forms.Control.IsKeyLocked(System.Windows.Forms.Keys.CapsLock)) && type == MouseMessages.WM_MOUSEMOVE)
+            else if ((isScroll) && type == MouseMessages.WM_MOUSEMOVE)
             {
+
 
                 dx += hookStruct.pt.x - startX;
                 dy += hookStruct.pt.y - startY;
@@ -173,7 +193,7 @@ namespace MarbleScroll
                     {
                         mouse_event((uint)MouseEvents.HWHEEL, 0U, 0U, d, UIntPtr.Zero);
                     });
-                    disableBackButton = true;
+                    supressButtonClick = true;
                 }
 
                 // vertical
@@ -198,7 +218,7 @@ namespace MarbleScroll
                     {
                         mouse_event((uint)MouseEvents.WHEEL, 0U, 0U, d, UIntPtr.Zero);
                     });
-                    disableBackButton = true;
+                    supressButtonClick = true;
                 }
 
                 return new IntPtr(1);

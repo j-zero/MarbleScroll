@@ -9,7 +9,7 @@ namespace MarbleScroll
     static class Program
     {
 
-        private static MarbleScroll marbleScroll;
+        
 
         /// <summary>
         /// The main entry point for the application.
@@ -17,9 +17,11 @@ namespace MarbleScroll
         [STAThread]
         static void Main()
         {
-            marbleScroll = new MarbleScroll();
-            marbleScroll.FocusWindow = false;
-            marbleScroll.Start();
+            Global.marbleScroll = new MarbleScroll();
+            Global.marbleScroll.FocusWindow = false;
+            Global.marbleScroll.EnableMiddleButtonScroll = true;
+            Global.marbleScroll.EnableXButtonScroll = true;
+            Global.marbleScroll.Start();
             
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
@@ -30,7 +32,7 @@ namespace MarbleScroll
 
         static void Exit(object sender, EventArgs e)
         {
-            marbleScroll.Stop();
+            Global.marbleScroll.Stop();
         }
     }
 }

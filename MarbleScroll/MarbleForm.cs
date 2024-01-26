@@ -31,32 +31,38 @@ namespace MarbleScroll
             System.ComponentModel.ComponentResourceManager resources = new System.ComponentModel.ComponentResourceManager(typeof(MarbleForm));
             Container components = new Container();
 
-            ToolStripMenuItem Exit = new ToolStripMenuItem();
-            Exit.Text = "Exit";
-            Exit.Click += new EventHandler(Exit_Click);
-
-            ContextMenuStrip trayMenu = new ContextMenuStrip(components);
-            trayMenu.ResumeLayout(false);
-            trayMenu.Items.AddRange(new ToolStripMenuItem[1] {
-                Exit
-            });
 
             NotifyIcon trayIcon = new NotifyIcon(components);
-            trayIcon.ContextMenuStrip = trayMenu;
+            trayIcon.ContextMenuStrip = contextMenuStrip1;
             trayIcon.Icon = (Icon) resources.GetObject("$this.Icon");
-            trayIcon.Text = "MarbleScroll";
+            trayIcon.Text = "Scrolly";
             trayIcon.Visible = true;
         }
 
         private void Exit_Click(object sender, EventArgs e)
         {
-            Close();
-            Application.Exit();
+
         }
 
         private void MarbleForm_Load(object sender, EventArgs e)
         {
 
+        }
+
+        private void exitToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            Close();
+            Application.Exit();
+        }
+
+        private void scrollOnMiddleButtonToolStripMenuItem_CheckedChanged(object sender, EventArgs e)
+        {
+            Global.marbleScroll.EnableMiddleButtonScroll = scrollOnMiddleButtonToolStripMenuItem.Checked;
+        }
+
+        private void scrollOnXButtonToolStripMenuItem_CheckedChanged(object sender, EventArgs e)
+        {
+            Global.marbleScroll.EnableXButtonScroll = scrollOnXButtonToolStripMenuItem.Checked;
         }
     }
 }
